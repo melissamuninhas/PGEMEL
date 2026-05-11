@@ -14,6 +14,17 @@ function createDefaultDB() {
       instagram: "https://www.instagram.com",
       twitter: "https://x.com"
     },
+    pricing: {
+      intro: "Ta afim de apoiar a live com animes, series ou filmes? Segue nossa tabela de valores:",
+      items: [
+        { label: "1 episodio por anime", price: "R$10,00" },
+        { label: "1 episodio por serie", price: "R$15,00" },
+        { label: "Filmes com duracao de ate 1h50min", price: "R$20,00" },
+        { label: "Filmes com duracao de ate 2h30min", price: "R$30,00" },
+        { label: "Filmes com duracao de ate 3h", price: "R$35,00" }
+      ],
+      note: "Filmes com maior tempo de duracao: consultar a streamer."
+    },
     schedule: [
       {
         id: crypto.randomUUID(),
@@ -144,6 +155,37 @@ async function resolveImageInput(urlInputId, fileInputId, fallbackImage = "") {
 
 let db = loadDB();
 
+function getDefaultPricing() {
+  return {
+    intro: "Ta afim de apoiar a live com animes, series ou filmes? Segue nossa tabela de valores:",
+    items: [
+      { label: "1 episodio por anime", price: "R$10,00" },
+      { label: "1 episodio por serie", price: "R$15,00" },
+      { label: "Filmes com duracao de ate 1h50min", price: "R$20,00" },
+      { label: "Filmes com duracao de ate 2h30min", price: "R$30,00" },
+      { label: "Filmes com duracao de ate 3h", price: "R$35,00" }
+    ],
+    note: "Filmes com maior tempo de duracao: consultar a streamer."
+  };
+}
+
+function ensurePricingModel() {
+  const fallback = getDefaultPricing();
+  const incoming = db.pricing || {};
+  const incomingItems = Array.isArray(incoming.items) ? incoming.items.slice(0, 5) : [];
+
+  const normalizedItems = fallback.items.map((item, index) => ({
+    label: incomingItems[index]?.label || item.label,
+    price: incomingItems[index]?.price || item.price
+  }));
+
+  return {
+    intro: incoming.intro || fallback.intro,
+    items: normalizedItems,
+    note: incoming.note || fallback.note
+  };
+}
+
 function setAdminVisibility(isLogged) {
   document.getElementById("loginSection").classList.toggle("d-none", isLogged);
   document.getElementById("adminApp").classList.toggle("d-none", !isLogged);
@@ -185,6 +227,18 @@ function fillLinksForm() {
   document.getElementById("twitchInput").value = db.social.twitch;
   document.getElementById("instagramInput").value = db.social.instagram;
   document.getElementById("twitterInput").value = db.social.twitter;
+}
+
+function fillPricesForm() {
+  const pricing = ensurePricingModel();
+  document.getElementById("pricesIntroInput").value = pricing.intro;
+  document.getElementById("pricesNoteInput").value = pricing.note;
+
+  pricing.items.forEach((item, index) => {
+    const number = index + 1;
+    document.getElementById(`priceLabel${number}`).value = item.label;
+    document.getElementById(`priceValue${number}`).value = item.price;
+  });
 }
 
 function renderScheduleTable() {
@@ -272,6 +326,7 @@ function refreshAll() {
   renderDashboard();
   fillHeroForm();
   fillLinksForm();
+  fillPricesForm();
   renderScheduleTable();
   renderCatalogTable();
   renderRequests();
@@ -360,6 +415,38 @@ function setupHeroAndLinksForms() {
     saveDB(db);
     renderDashboard();
     showToast("Links atualizados.", "success");
+  });
+
+  document.getElementById("pricesForm").addEventListener("submit", async (event) => {
+    event.preventDefault();
+
+    const items = [1, 2, 3, 4, 5].map((number) => ({
+      label: document.getElementById(`priceLabel${number}`).value.trim(),
+      price: document.getElementById(`priceValue${number}`).value.trim()
+    }));
+
+    if (items.some((item) => !item.label || !item.price)) {
+      showToast("Preencha todos os campos da tabela de precos.", "danger");
+      return;
+    }
+
+    const previousPricing = db.pricing;
+    db.pricing = {
+      intro: document.getElementById("pricesIntroInput").value.trim(),
+      items,
+      note: document.getElementById("pricesNoteInput").value.trim()
+    };
+
+    try {
+      await saveDB(db);
+    } catch (error) {
+      console.error(error);
+      db.pricing = previousPricing;
+      showToast("Erro ao salvar precos no Firebase.", "danger");
+      return;
+    }
+
+    showToast("Tabela de precos atualizada.", "success");
   });
 }
 

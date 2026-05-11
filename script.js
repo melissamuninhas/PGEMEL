@@ -13,6 +13,17 @@ function createDefaultDB() {
       instagram: "https://www.instagram.com",
       twitter: "https://x.com"
     },
+    pricing: {
+      intro: "Ta afim de apoiar a live com animes, series ou filmes? Segue nossa tabela de valores:",
+      items: [
+        { label: "1 episodio por anime", price: "R$10,00" },
+        { label: "1 episodio por serie", price: "R$15,00" },
+        { label: "Filmes com duracao de ate 1h50min", price: "R$20,00" },
+        { label: "Filmes com duracao de ate 2h30min", price: "R$30,00" },
+        { label: "Filmes com duracao de ate 3h", price: "R$35,00" }
+      ],
+      note: "Filmes com maior tempo de duracao: consultar a streamer."
+    },
     schedule: [
       {
         id: crypto.randomUUID(),
@@ -176,6 +187,47 @@ function renderHero() {
   document.getElementById("socialLinksHeader").innerHTML = buildSocialLinks(db.social);
   document.getElementById("socialLinksFooter").innerHTML = buildSocialLinks(db.social);
   document.getElementById("weekCount").textContent = db.schedule.length;
+}
+
+function getPricingModel() {
+  const defaults = createDefaultDB().pricing;
+  const incoming = db.pricing || {};
+  const incomingItems = Array.isArray(incoming.items) ? incoming.items.slice(0, 5) : [];
+
+  return {
+    intro: incoming.intro || defaults.intro,
+    items: defaults.items.map((item, index) => ({
+      label: incomingItems[index]?.label || item.label,
+      price: incomingItems[index]?.price || item.price
+    })),
+    note: incoming.note || defaults.note
+  };
+}
+
+function renderPricing() {
+  const pricing = getPricingModel();
+  const intro = document.getElementById("pricingIntro");
+  const note = document.getElementById("pricingNote");
+  const list = document.getElementById("pricingList");
+
+  if (!intro || !note || !list) return;
+
+  intro.textContent = pricing.intro;
+  note.textContent = pricing.note;
+  list.innerHTML = "";
+
+  pricing.items.forEach((item) => {
+    const li = document.createElement("li");
+    const label = document.createElement("span");
+    const price = document.createElement("strong");
+
+    label.textContent = item.label;
+    price.textContent = item.price;
+
+    li.appendChild(label);
+    li.appendChild(price);
+    list.appendChild(li);
+  });
 }
 
 function openScheduleModal(item) {
@@ -444,6 +496,7 @@ function init() {
   const store = window.SeaCaosStore;
   if (!store) {
     renderHero();
+    renderPricing();
     renderSchedule();
     renderWatched();
     document.getElementById("pageLoader").classList.add("hidden");
@@ -457,6 +510,7 @@ function init() {
         scheduleVisibleCount = Math.max(INITIAL_VISIBLE_CARDS, Math.min(scheduleVisibleCount, db.schedule.length));
         watchedVisibleCount = Math.max(INITIAL_VISIBLE_CARDS, watchedVisibleCount);
         renderHero();
+        renderPricing();
         renderSchedule();
         renderWatched();
         document.getElementById("pageLoader").classList.add("hidden");

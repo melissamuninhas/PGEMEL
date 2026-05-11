@@ -12,6 +12,17 @@
       instagram: "https://www.instagram.com",
       twitter: "https://x.com"
     },
+    pricing: {
+      intro: "Ta afim de apoiar a live com animes, series ou filmes? Segue nossa tabela de valores:",
+      items: [
+        { label: "1 episodio por anime", price: "R$10,00" },
+        { label: "1 episodio por serie", price: "R$15,00" },
+        { label: "Filmes com duracao de ate 1h50min", price: "R$20,00" },
+        { label: "Filmes com duracao de ate 2h30min", price: "R$30,00" },
+        { label: "Filmes com duracao de ate 3h", price: "R$35,00" }
+      ],
+      note: "Filmes com maior tempo de duracao: consultar a streamer."
+    },
     schedule: [
       {
         id: crypto.randomUUID(),
@@ -154,6 +165,9 @@
   }
 
   function normalize(data = {}) {
+    const defaultPricing = clone(DEFAULT_DB.pricing);
+    const pricingItems = Array.isArray(data.pricing?.items) ? data.pricing.items.slice(0, 5) : [];
+
     return {
       hero: {
         ...clone(DEFAULT_DB.hero),
@@ -162,6 +176,14 @@
       social: {
         ...clone(DEFAULT_DB.social),
         ...(data.social || {})
+      },
+      pricing: {
+        intro: data.pricing?.intro || defaultPricing.intro,
+        items: defaultPricing.items.map((item, index) => ({
+          label: pricingItems[index]?.label || item.label,
+          price: pricingItems[index]?.price || item.price
+        })),
+        note: data.pricing?.note || defaultPricing.note
       },
       schedule: Array.isArray(data.schedule) ? normalizeCollection(data.schedule, normalizeScheduleItem) : normalizeCollection(clone(DEFAULT_DB.schedule), normalizeScheduleItem),
       watched: Array.isArray(data.watched) ? normalizeCollection(data.watched, normalizeWatchedItem) : normalizeCollection(clone(DEFAULT_DB.watched), normalizeWatchedItem),
@@ -173,6 +195,7 @@
     return {
       hero: data.hero,
       social: data.social,
+      pricing: data.pricing,
       schemaVersion: 2
     };
   }
@@ -360,6 +383,7 @@
       current = normalize({
         hero: normalizedLegacy.hero,
         social: normalizedLegacy.social,
+        pricing: normalizedLegacy.pricing,
         schedule: scheduleList,
         watched: watchedList,
         requests: requestsList
@@ -370,6 +394,7 @@
         const normalizedCore = normalize({
           hero: remoteData?.hero,
           social: remoteData?.social,
+          pricing: remoteData?.pricing,
           schedule: current.schedule,
           watched: current.watched,
           requests: current.requests

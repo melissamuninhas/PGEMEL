@@ -44,6 +44,7 @@
           <button class="list-group-item list-group-item-action" data-target="heroPanel"><i class="fa-solid fa-wand-magic-sparkles"></i> Hero</button>
           <button class="list-group-item list-group-item-action" data-target="schedulePanel"><i class="fa-solid fa-calendar-week"></i> Cronograma</button>
           <button class="list-group-item list-group-item-action" data-target="catalogPanel"><i class="fa-solid fa-photo-film"></i> Catalogo</button>
+          <button class="list-group-item list-group-item-action" data-target="pricesPanel"><i class="fa-solid fa-tags"></i> Precos</button>
           <button class="list-group-item list-group-item-action" data-target="linksPanel"><i class="fa-solid fa-link"></i> Links</button>
           <button class="list-group-item list-group-item-action" data-target="requestsPanel"><i class="fa-solid fa-inbox"></i> Pedidos</button>
         </div>
@@ -107,6 +108,70 @@
             <tbody id="catalogTable"></tbody>
           </table>
         </div>
+      </section>
+
+      <section id="pricesPanel" class="admin-panel">
+        <h3>Editar Precos</h3>
+        <form id="pricesForm" class="row g-3 mt-1">
+          <div class="col-12">
+            <label class="form-label">Texto de introducao</label>
+            <textarea class="form-control" id="pricesIntroInput" rows="2" required></textarea>
+          </div>
+
+          <div class="col-md-8">
+            <label class="form-label">Item 1 - Descricao</label>
+            <input class="form-control" id="priceLabel1" required />
+          </div>
+          <div class="col-md-4">
+            <label class="form-label">Item 1 - Valor</label>
+            <input class="form-control" id="priceValue1" placeholder="R$10,00" required />
+          </div>
+
+          <div class="col-md-8">
+            <label class="form-label">Item 2 - Descricao</label>
+            <input class="form-control" id="priceLabel2" required />
+          </div>
+          <div class="col-md-4">
+            <label class="form-label">Item 2 - Valor</label>
+            <input class="form-control" id="priceValue2" placeholder="R$15,00" required />
+          </div>
+
+          <div class="col-md-8">
+            <label class="form-label">Item 3 - Descricao</label>
+            <input class="form-control" id="priceLabel3" required />
+          </div>
+          <div class="col-md-4">
+            <label class="form-label">Item 3 - Valor</label>
+            <input class="form-control" id="priceValue3" placeholder="R$20,00" required />
+          </div>
+
+          <div class="col-md-8">
+            <label class="form-label">Item 4 - Descricao</label>
+            <input class="form-control" id="priceLabel4" required />
+          </div>
+          <div class="col-md-4">
+            <label class="form-label">Item 4 - Valor</label>
+            <input class="form-control" id="priceValue4" placeholder="R$30,00" required />
+          </div>
+
+          <div class="col-md-8">
+            <label class="form-label">Item 5 - Descricao</label>
+            <input class="form-control" id="priceLabel5" required />
+          </div>
+          <div class="col-md-4">
+            <label class="form-label">Item 5 - Valor</label>
+            <input class="form-control" id="priceValue5" placeholder="R$35,00" required />
+          </div>
+
+          <div class="col-12">
+            <label class="form-label">Observacao final</label>
+            <textarea class="form-control" id="pricesNoteInput" rows="2" required></textarea>
+          </div>
+
+          <div class="col-12">
+            <button class="btn btn-neon" type="submit">Salvar Precos</button>
+          </div>
+        </form>
       </section>
 
       <section id="linksPanel" class="admin-panel">
