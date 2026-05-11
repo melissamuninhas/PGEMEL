@@ -75,20 +75,44 @@ function fileToDataUrl(file) {
     reader.onload = () => {
       const image = new Image();
       image.onload = () => {
-        const maxDimension = 1280;
-        const scale = Math.min(1, maxDimension / Math.max(image.width, image.height));
-        const width = Math.max(1, Math.round(image.width * scale));
-        const height = Math.max(1, Math.round(image.height * scale));
+        const maxDimension = 1080;
+        const minDimension = 360;
+        const targetMaxChars = 260000;
+
+        let scale = Math.min(1, maxDimension / Math.max(image.width, image.height));
+        let width = Math.max(1, Math.round(image.width * scale));
+        let height = Math.max(1, Math.round(image.height * scale));
 
         const canvas = document.createElement("canvas");
-        canvas.width = width;
-        canvas.height = height;
         const context = canvas.getContext("2d");
-        context.drawImage(image, 0, 0, width, height);
 
-        const dataUrl = canvas.toDataURL("image/jpeg", 0.82);
-        if (dataUrl.length > 750000) {
-          reject(new Error("Imagem muito grande. Use uma imagem menor para salvar."));
+        const qualities = [0.85, 0.74, 0.64, 0.54, 0.46, 0.4];
+        let dataUrl = "";
+
+        for (let resizeStep = 0; resizeStep < 5; resizeStep += 1) {
+          canvas.width = width;
+          canvas.height = height;
+          context.clearRect(0, 0, width, height);
+          context.drawImage(image, 0, 0, width, height);
+
+          for (const quality of qualities) {
+            dataUrl = canvas.toDataURL("image/jpeg", quality);
+            if (dataUrl.length <= targetMaxChars) {
+              resolve(dataUrl);
+              return;
+            }
+          }
+
+          if (Math.max(width, height) <= minDimension) {
+            break;
+          }
+
+          width = Math.max(minDimension, Math.round(width * 0.82));
+          height = Math.max(minDimension, Math.round(height * 0.82));
+        }
+
+        if (!dataUrl) {
+          reject(new Error("Nao foi possivel processar a imagem selecionada."));
           return;
         }
 
@@ -313,7 +337,14 @@ function setupHeroAndLinksForms() {
       subtitle: document.getElementById("heroSubtitleInput").value.trim(),
       image
     };
-    saveDB(db);
+    try {
+      await saveDB(db);
+    } catch (error) {
+      console.error(error);
+      showToast("Erro ao salvar no Firebase. Tente uma imagem menor.", "danger");
+      return;
+    }
+
     renderDashboard();
     showToast("Hero atualizado.", "success");
   });
