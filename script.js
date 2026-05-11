@@ -102,33 +102,11 @@ function createDefaultDB() {
 }
 
 function loadDB() {
-  const raw = localStorage.getItem(STORAGE_KEY);
-  if (!raw) {
-    const initial = createDefaultDB();
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(initial));
-    return initial;
-  }
-
-  try {
-    const parsed = JSON.parse(raw);
-    return {
-      ...createDefaultDB(),
-      ...parsed,
-      hero: { ...createDefaultDB().hero, ...parsed.hero },
-      social: { ...createDefaultDB().social, ...parsed.social },
-      schedule: Array.isArray(parsed.schedule) ? parsed.schedule : [],
-      watched: Array.isArray(parsed.watched) ? parsed.watched : [],
-      requests: Array.isArray(parsed.requests) ? parsed.requests : []
-    };
-  } catch {
-    const fallback = createDefaultDB();
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(fallback));
-    return fallback;
-  }
+  return window.SeaCaosStore ? window.SeaCaosStore.getCurrent() : createDefaultDB();
 }
 
 function saveDB(db) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(db));
+  return window.SeaCaosStore ? window.SeaCaosStore.save(db) : Promise.resolve(db);
 }
 
 function formatDate(dateString) {
@@ -419,16 +397,34 @@ function setupParticles() {
 }
 
 function init() {
-  renderHero();
-  setTimeout(() => {
-    renderSchedule();
-    renderWatched();
-    document.getElementById("pageLoader").classList.add("hidden");
-  }, 650);
-
   setupFiltersAndSearch();
   setupRequestForm();
   setupParticles();
+
+  const store = window.SeaCaosStore;
+  if (!store) {
+    renderHero();
+    renderSchedule();
+    renderWatched();
+    document.getElementById("pageLoader").classList.add("hidden");
+    return;
+  }
+
+  store.ready
+    .then(() => {
+      store.subscribe((nextDb) => {
+        db = nextDb;
+        renderHero();
+        renderSchedule();
+        renderWatched();
+        document.getElementById("pageLoader").classList.add("hidden");
+      });
+    })
+    .catch((error) => {
+      console.error(error);
+      document.getElementById("pageLoader").classList.add("hidden");
+      showToast("Falha ao conectar com o Firebase.", "danger");
+    });
 }
 
 document.addEventListener("DOMContentLoaded", init);

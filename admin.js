@@ -39,34 +39,11 @@ function createDefaultDB() {
 }
 
 function loadDB() {
-  const raw = localStorage.getItem(STORAGE_KEY);
-  if (!raw) {
-    const initial = createDefaultDB();
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(initial));
-    return initial;
-  }
-
-  try {
-    const parsed = JSON.parse(raw);
-    const defaults = createDefaultDB();
-    return {
-      ...defaults,
-      ...parsed,
-      hero: { ...defaults.hero, ...parsed.hero },
-      social: { ...defaults.social, ...parsed.social },
-      schedule: Array.isArray(parsed.schedule) ? parsed.schedule : defaults.schedule,
-      watched: Array.isArray(parsed.watched) ? parsed.watched : defaults.watched,
-      requests: Array.isArray(parsed.requests) ? parsed.requests : []
-    };
-  } catch {
-    const fallback = createDefaultDB();
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(fallback));
-    return fallback;
-  }
+  return window.SeaCaosStore ? window.SeaCaosStore.getCurrent() : createDefaultDB();
 }
 
 function saveDB(db) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(db));
+  return window.SeaCaosStore ? window.SeaCaosStore.save(db) : Promise.resolve(db);
 }
 
 function showToast(message, type = "info") {
@@ -437,11 +414,27 @@ function init() {
   setupScheduleCRUD();
   setupCatalogCRUD();
   setupRequestsActions();
-  refreshAll();
 
-  setTimeout(() => {
+  const store = window.SeaCaosStore;
+  if (!store) {
+    refreshAll();
     document.getElementById("adminLoader").classList.add("hidden");
-  }, 450);
+    return;
+  }
+
+  store.ready
+    .then(() => {
+      store.subscribe((nextDb) => {
+        db = nextDb;
+        refreshAll();
+        document.getElementById("adminLoader").classList.add("hidden");
+      });
+    })
+    .catch((error) => {
+      console.error(error);
+      document.getElementById("adminLoader").classList.add("hidden");
+      showToast("Falha ao conectar com o Firebase.", "danger");
+    });
 }
 
 document.addEventListener("DOMContentLoaded", init);
