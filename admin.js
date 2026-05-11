@@ -491,22 +491,31 @@ function setupCatalogCRUD() {
       rating: Number(document.getElementById("catalogRating").value)
     };
 
+    const previousWatched = [...db.watched];
+
     if (id) {
       db.watched = db.watched.map((item) => (item.id === id ? payload : item));
-      showToast("Conteudo atualizado.", "success");
     } else {
       db.watched.push(payload);
-      showToast("Conteudo adicionado.", "success");
     }
 
-    saveDB(db);
+    try {
+      await saveDB(db);
+    } catch (error) {
+      console.error(error);
+      db.watched = previousWatched;
+      showToast("Erro ao salvar conteudo no Firebase.", "danger");
+      return;
+    }
+
+    showToast(id ? "Conteudo atualizado." : "Conteudo adicionado.", "success");
     renderCatalogTable();
     renderDashboard();
     catalogForm.dataset.currentImage = "";
     modal.hide();
   });
 
-  document.getElementById("catalogTable").addEventListener("click", (event) => {
+  document.getElementById("catalogTable").addEventListener("click", async (event) => {
     const editBtn = event.target.closest(".edit-catalog");
     const removeBtn = event.target.closest(".remove-catalog");
 
@@ -526,8 +535,20 @@ function setupCatalogCRUD() {
 
     if (removeBtn) {
       const id = removeBtn.dataset.id;
+      const previousWatched = [...db.watched];
       db.watched = db.watched.filter((w) => w.id !== id);
-      saveDB(db);
+
+      try {
+        await saveDB(db);
+      } catch (error) {
+        console.error(error);
+        db.watched = previousWatched;
+        renderCatalogTable();
+        renderDashboard();
+        showToast("Erro ao remover conteudo no Firebase.", "danger");
+        return;
+      }
+
       renderCatalogTable();
       renderDashboard();
       showToast("Conteudo removido.", "success");
