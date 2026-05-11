@@ -447,10 +447,27 @@ body {
 }
 
 .pricing-card {
+  position: relative;
+  overflow: hidden;
   border-radius: var(--radius-lg);
-  padding: 1.4rem;
+  padding: 1.6rem;
   border: 1px solid rgba(82, 167, 255, 0.18);
-  background: linear-gradient(180deg, rgba(18, 18, 37, 0.78), rgba(9, 9, 18, 0.92));
+  background:
+    radial-gradient(circle at 8% 12%, rgba(82, 167, 255, 0.18), transparent 34%),
+    radial-gradient(circle at 92% 88%, rgba(192, 132, 252, 0.16), transparent 36%),
+    linear-gradient(160deg, rgba(18, 18, 37, 0.9), rgba(9, 9, 18, 0.96));
+  box-shadow: 0 14px 42px rgba(0, 0, 0, 0.38), 0 0 22px rgba(82, 167, 255, 0.12);
+}
+
+.pricing-card::after {
+  content: "";
+  position: absolute;
+  inset: auto -40px -58px auto;
+  width: 200px;
+  height: 200px;
+  border-radius: 999px;
+  background: radial-gradient(circle, rgba(124, 58, 237, 0.24), transparent 72%);
+  pointer-events: none;
 }
 
 .pricing-intro,
@@ -458,29 +475,72 @@ body {
   color: var(--text-dim);
 }
 
+.pricing-intro {
+  max-width: 70ch;
+  font-size: 1rem;
+  line-height: 1.55;
+}
+
+.pricing-note {
+  margin-top: 1rem;
+  padding-top: 0.95rem;
+  border-top: 1px dashed rgba(192, 132, 252, 0.35);
+  font-size: 0.95rem;
+}
+
 .pricing-list {
   list-style: none;
   margin: 1rem 0;
   padding: 0;
   display: grid;
-  gap: 0.7rem;
+  gap: 0.75rem;
 }
 
 .pricing-list li {
+  position: relative;
   display: flex;
   justify-content: space-between;
   align-items: center;
   gap: 1rem;
-  padding: 0.75rem 0.9rem;
+  padding: 0.9rem 1rem 0.9rem 1.2rem;
   border-radius: 12px;
-  border: 1px solid rgba(192, 132, 252, 0.3);
-  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(82, 167, 255, 0.22);
+  background: linear-gradient(120deg, rgba(255, 255, 255, 0.045), rgba(255, 255, 255, 0.02));
+  transition: transform 0.25s ease, border-color 0.25s ease, box-shadow 0.25s ease;
+}
+
+.pricing-list li::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 8px;
+  bottom: 8px;
+  width: 4px;
+  border-radius: 999px;
+  background: linear-gradient(180deg, var(--electric-blue), var(--neon-soft));
+}
+
+.pricing-list li:hover {
+  transform: translateY(-2px);
+  border-color: rgba(192, 132, 252, 0.5);
+  box-shadow: 0 0 16px rgba(82, 167, 255, 0.16);
+}
+
+.pricing-list span {
+  font-weight: 500;
+  color: #ececff;
 }
 
 .pricing-list strong {
-  color: #f6df75;
-  font-size: 1.05rem;
+  color: #fff6b7;
+  font-size: 1.02rem;
+  letter-spacing: 0.3px;
   white-space: nowrap;
+  border: 1px solid rgba(255, 244, 173, 0.35);
+  border-radius: 999px;
+  padding: 0.28rem 0.72rem;
+  background: linear-gradient(140deg, rgba(255, 214, 92, 0.2), rgba(255, 157, 0, 0.08));
+  box-shadow: inset 0 0 18px rgba(255, 228, 122, 0.1);
 }
 
 .request-card p {
@@ -778,9 +838,18 @@ body {
     padding: 1rem;
   }
 
+  .pricing-intro {
+    font-size: 0.95rem;
+  }
+
   .pricing-list li {
     flex-direction: column;
     align-items: flex-start;
+    padding: 0.85rem 0.85rem 0.85rem 1rem;
+  }
+
+  .pricing-list strong {
+    font-size: 0.96rem;
   }
 
   .btn-live {
