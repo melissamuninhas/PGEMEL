@@ -154,6 +154,16 @@ let watchedSwiper = null;
 let db = loadDB();
 let currentFilter = "Todos";
 let currentSearch = "";
+const INITIAL_VISIBLE_CARDS = 8;
+const LOAD_MORE_STEP = 4;
+let scheduleVisibleCount = INITIAL_VISIBLE_CARDS;
+let watchedVisibleCount = INITIAL_VISIBLE_CARDS;
+
+function toggleLoadMoreButton(buttonId, visibleCount, totalCount) {
+  const button = document.getElementById(buttonId);
+  if (!button) return;
+  button.classList.toggle("d-none", totalCount <= visibleCount);
+}
 
 function renderHero() {
   document.getElementById("heroTitle").textContent = db.hero.title;
@@ -186,7 +196,9 @@ function renderSchedule() {
   const swiperRoot = document.getElementById("scheduleSwiper");
   const wrapper = document.getElementById("scheduleWrapper");
 
-  wrapper.innerHTML = db.schedule
+  const visibleSchedule = db.schedule.slice(0, scheduleVisibleCount);
+
+  wrapper.innerHTML = visibleSchedule
     .map(
       (item) => `
       <div class="swiper-slide">
@@ -208,6 +220,8 @@ function renderSchedule() {
     `
     )
     .join("");
+
+  toggleLoadMoreButton("scheduleLoadMoreBtn", visibleSchedule.length, db.schedule.length);
 
   skeleton.classList.add("d-none");
   swiperRoot.classList.remove("d-none");
@@ -245,16 +259,18 @@ function getFilteredWatched() {
 
 function renderWatched() {
   const data = getFilteredWatched();
+  const visibleWatched = data.slice(0, watchedVisibleCount);
   const grid = document.getElementById("watchedGrid");
   const wrapper = document.getElementById("watchedWrapper");
 
   if (!data.length) {
     grid.innerHTML = `<div class="col-12"><div class="glass p-4 rounded-4">Nenhum titulo encontrado com os filtros atuais.</div></div>`;
     wrapper.innerHTML = "";
+    toggleLoadMoreButton("watchedLoadMoreBtn", 0, 0);
     return;
   }
 
-  const cardsHTML = data
+  const cardsHTML = visibleWatched
     .map(
       (item) => `
       <div class="col-12 col-sm-6 col-lg-4 col-xl-3">
@@ -275,7 +291,7 @@ function renderWatched() {
 
   grid.innerHTML = cardsHTML;
 
-  wrapper.innerHTML = data
+  wrapper.innerHTML = visibleWatched
     .map(
       (item) => `
       <div class="swiper-slide">
@@ -293,6 +309,8 @@ function renderWatched() {
     `
     )
     .join("");
+
+  toggleLoadMoreButton("watchedLoadMoreBtn", visibleWatched.length, data.length);
 
   if (watchedSwiper) {
     watchedSwiper.destroy(true, true);
@@ -315,14 +333,35 @@ function setupFiltersAndSearch() {
       document.querySelectorAll(".btn-filter").forEach((b) => b.classList.remove("active"));
       btn.classList.add("active");
       currentFilter = btn.dataset.filter;
+      watchedVisibleCount = INITIAL_VISIBLE_CARDS;
       renderWatched();
     });
   });
 
   document.getElementById("searchInput").addEventListener("input", (event) => {
     currentSearch = event.target.value.trim();
+    watchedVisibleCount = INITIAL_VISIBLE_CARDS;
     renderWatched();
   });
+}
+
+function setupLoadMoreButtons() {
+  const scheduleLoadMoreBtn = document.getElementById("scheduleLoadMoreBtn");
+  const watchedLoadMoreBtn = document.getElementById("watchedLoadMoreBtn");
+
+  if (scheduleLoadMoreBtn) {
+    scheduleLoadMoreBtn.addEventListener("click", () => {
+      scheduleVisibleCount += LOAD_MORE_STEP;
+      renderSchedule();
+    });
+  }
+
+  if (watchedLoadMoreBtn) {
+    watchedLoadMoreBtn.addEventListener("click", () => {
+      watchedVisibleCount += LOAD_MORE_STEP;
+      renderWatched();
+    });
+  }
 }
 
 function setupRequestForm() {
@@ -398,6 +437,7 @@ function setupParticles() {
 
 function init() {
   setupFiltersAndSearch();
+  setupLoadMoreButtons();
   setupRequestForm();
   setupParticles();
 
@@ -414,6 +454,8 @@ function init() {
     .then(() => {
       store.subscribe((nextDb) => {
         db = nextDb;
+        scheduleVisibleCount = Math.max(INITIAL_VISIBLE_CARDS, Math.min(scheduleVisibleCount, db.schedule.length));
+        watchedVisibleCount = Math.max(INITIAL_VISIBLE_CARDS, watchedVisibleCount);
         renderHero();
         renderSchedule();
         renderWatched();

@@ -472,6 +472,12 @@ body {
   max-width: 540px;
 }
 
+.load-more-wrap {
+  display: flex;
+  justify-content: center;
+  margin-top: 1.1rem;
+}
+
 .btn-filter {
   border: 1px solid rgba(192, 132, 252, 0.4);
   color: var(--text-dim);
