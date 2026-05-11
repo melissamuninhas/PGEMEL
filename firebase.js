@@ -166,7 +166,13 @@
 
   function normalize(data = {}) {
     const defaultPricing = clone(DEFAULT_DB.pricing);
-    const pricingItems = Array.isArray(data.pricing?.items) ? data.pricing.items.slice(0, 5) : [];
+    const pricingItems = Array.isArray(data.pricing?.items) ? data.pricing.items : [];
+    const normalizedPricingItems = pricingItems
+      .map((item) => ({
+        label: String(item?.label || "").trim(),
+        price: String(item?.price || "").trim()
+      }))
+      .filter((item) => item.label && item.price);
 
     return {
       hero: {
@@ -179,10 +185,7 @@
       },
       pricing: {
         intro: data.pricing?.intro || defaultPricing.intro,
-        items: defaultPricing.items.map((item, index) => ({
-          label: pricingItems[index]?.label || item.label,
-          price: pricingItems[index]?.price || item.price
-        })),
+        items: normalizedPricingItems.length ? normalizedPricingItems : defaultPricing.items,
         note: data.pricing?.note || defaultPricing.note
       },
       schedule: Array.isArray(data.schedule) ? normalizeCollection(data.schedule, normalizeScheduleItem) : normalizeCollection(clone(DEFAULT_DB.schedule), normalizeScheduleItem),

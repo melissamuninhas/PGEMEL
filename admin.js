@@ -172,18 +172,70 @@ function getDefaultPricing() {
 function ensurePricingModel() {
   const fallback = getDefaultPricing();
   const incoming = db.pricing || {};
-  const incomingItems = Array.isArray(incoming.items) ? incoming.items.slice(0, 5) : [];
-
-  const normalizedItems = fallback.items.map((item, index) => ({
-    label: incomingItems[index]?.label || item.label,
-    price: incomingItems[index]?.price || item.price
-  }));
+  const incomingItems = Array.isArray(incoming.items) ? incoming.items : [];
+  const normalizedItems = incomingItems.length
+    ? incomingItems
+        .map((item) => ({
+          label: String(item?.label || "").trim(),
+          price: String(item?.price || "").trim()
+        }))
+        .filter((item) => item.label || item.price)
+    : fallback.items;
 
   return {
     intro: incoming.intro || fallback.intro,
-    items: normalizedItems,
+    items: normalizedItems.length ? normalizedItems : fallback.items,
     note: incoming.note || fallback.note
   };
+}
+
+function escapeHtmlAttr(value) {
+  return String(value)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+function buildPriceItemRow(item = {}, index = 0) {
+  const row = document.createElement("div");
+  row.className = "price-item-row row g-2 align-items-end";
+  row.innerHTML = `
+    <div class="col-md-7">
+      <label class="form-label">Descricao do item ${index + 1}</label>
+      <input class="form-control" data-role="price-label" value="${escapeHtmlAttr(item.label || "")}" required />
+    </div>
+    <div class="col-md-4">
+      <label class="form-label">Valor</label>
+      <input class="form-control" data-role="price-value" value="${escapeHtmlAttr(item.price || "")}" placeholder="R$00,00" required />
+    </div>
+    <div class="col-md-1 d-grid">
+      <button class="btn btn-danger btn-sm remove-price-item" type="button" title="Excluir item">
+        <i class="fa-solid fa-trash"></i>
+      </button>
+    </div>
+  `;
+  return row;
+}
+
+function renderPriceItems(items) {
+  const container = document.getElementById("pricesItemsContainer");
+  if (!container) return;
+
+  container.innerHTML = "";
+  const source = Array.isArray(items) && items.length ? items : getDefaultPricing().items;
+  source.forEach((item, index) => container.appendChild(buildPriceItemRow(item, index)));
+}
+
+function collectPriceItemsFromForm() {
+  const rows = Array.from(document.querySelectorAll("#pricesItemsContainer .price-item-row"));
+  return rows
+    .map((row) => ({
+      label: row.querySelector('[data-role="price-label"]').value.trim(),
+      price: row.querySelector('[data-role="price-value"]').value.trim()
+    }))
+    .filter((item) => item.label && item.price);
 }
 
 function setAdminVisibility(isLogged) {
@@ -233,12 +285,7 @@ function fillPricesForm() {
   const pricing = ensurePricingModel();
   document.getElementById("pricesIntroInput").value = pricing.intro;
   document.getElementById("pricesNoteInput").value = pricing.note;
-
-  pricing.items.forEach((item, index) => {
-    const number = index + 1;
-    document.getElementById(`priceLabel${number}`).value = item.label;
-    document.getElementById(`priceValue${number}`).value = item.price;
-  });
+  renderPriceItems(pricing.items);
 }
 
 function renderScheduleTable() {
@@ -417,16 +464,38 @@ function setupHeroAndLinksForms() {
     showToast("Links atualizados.", "success");
   });
 
+  document.getElementById("addPriceItemBtn").addEventListener("click", () => {
+    const container = document.getElementById("pricesItemsContainer");
+    const nextIndex = container.querySelectorAll(".price-item-row").length;
+    container.appendChild(buildPriceItemRow({}, nextIndex));
+  });
+
+  document.getElementById("pricesItemsContainer").addEventListener("click", (event) => {
+    const removeBtn = event.target.closest(".remove-price-item");
+    if (!removeBtn) return;
+
+    const container = document.getElementById("pricesItemsContainer");
+    const rows = container.querySelectorAll(".price-item-row");
+    if (rows.length <= 1) {
+      showToast("A tabela precisa ter pelo menos 1 item.", "danger");
+      return;
+    }
+
+    removeBtn.closest(".price-item-row").remove();
+
+    Array.from(container.querySelectorAll(".price-item-row")).forEach((row, index) => {
+      const label = row.querySelector(".form-label");
+      if (label) label.textContent = `Descricao do item ${index + 1}`;
+    });
+  });
+
   document.getElementById("pricesForm").addEventListener("submit", async (event) => {
     event.preventDefault();
 
-    const items = [1, 2, 3, 4, 5].map((number) => ({
-      label: document.getElementById(`priceLabel${number}`).value.trim(),
-      price: document.getElementById(`priceValue${number}`).value.trim()
-    }));
+    const items = collectPriceItemsFromForm();
 
-    if (items.some((item) => !item.label || !item.price)) {
-      showToast("Preencha todos os campos da tabela de precos.", "danger");
+    if (!items.length) {
+      showToast("Adicione pelo menos 1 item completo na tabela de precos.", "danger");
       return;
     }
 

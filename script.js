@@ -192,14 +192,17 @@ function renderHero() {
 function getPricingModel() {
   const defaults = createDefaultDB().pricing;
   const incoming = db.pricing || {};
-  const incomingItems = Array.isArray(incoming.items) ? incoming.items.slice(0, 5) : [];
+  const incomingItems = Array.isArray(incoming.items) ? incoming.items : [];
+  const normalizedItems = incomingItems
+    .map((item) => ({
+      label: String(item?.label || "").trim(),
+      price: String(item?.price || "").trim()
+    }))
+    .filter((item) => item.label && item.price);
 
   return {
     intro: incoming.intro || defaults.intro,
-    items: defaults.items.map((item, index) => ({
-      label: incomingItems[index]?.label || item.label,
-      price: incomingItems[index]?.price || item.price
-    })),
+    items: normalizedItems.length ? normalizedItems : defaults.items,
     note: incoming.note || defaults.note
   };
 }
