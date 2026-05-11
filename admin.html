@@ -69,8 +69,13 @@
             <textarea class="form-control" id="heroSubtitleInput" rows="3" required></textarea>
           </div>
           <div class="col-12">
-            <label class="form-label">URL da imagem do banner</label>
-            <input type="url" class="form-control" id="heroImageInput" required />
+            <label class="form-label">Imagem do banner (URL da web)</label>
+            <input type="url" class="form-control" id="heroImageInput" placeholder="https://..." />
+          </div>
+          <div class="col-12">
+            <label class="form-label">Ou selecione uma imagem local</label>
+            <input type="file" class="form-control" id="heroImageFileInput" accept="image/*" />
+            <small class="form-text opacity-75">Se selecionar arquivo local, ele tera prioridade sobre a URL.</small>
           </div>
           <div class="col-12">
             <button class="btn btn-neon" type="submit">Salvar Hero</button>
@@ -148,7 +153,11 @@
         <form id="scheduleForm" class="modal-body row g-3">
           <input type="hidden" id="scheduleId" />
           <div class="col-12"><input class="form-control" id="scheduleTitle" placeholder="Titulo" required /></div>
-          <div class="col-12"><input type="url" class="form-control" id="scheduleImage" placeholder="URL da imagem" required /></div>
+          <div class="col-12"><input type="url" class="form-control" id="scheduleImage" placeholder="URL da imagem (https://...)" /></div>
+          <div class="col-12">
+            <input type="file" class="form-control" id="scheduleImageFile" accept="image/*" />
+            <small class="form-text opacity-75">Voce pode usar URL da web ou arquivo local.</small>
+          </div>
           <div class="col-6"><input class="form-control" id="scheduleDay" placeholder="Dia" required /></div>
           <div class="col-6"><input type="date" class="form-control" id="scheduleDate" required /></div>
           <div class="col-6"><input class="form-control" id="scheduleEpisodes" placeholder="Episodios" required /></div>
@@ -169,7 +178,11 @@
         <form id="catalogForm" class="modal-body row g-3">
           <input type="hidden" id="catalogId" />
           <div class="col-12"><input class="form-control" id="catalogTitle" placeholder="Titulo" required /></div>
-          <div class="col-12"><input type="url" class="form-control" id="catalogImage" placeholder="URL da imagem" required /></div>
+          <div class="col-12"><input type="url" class="form-control" id="catalogImage" placeholder="URL da imagem (https://...)" /></div>
+          <div class="col-12">
+            <input type="file" class="form-control" id="catalogImageFile" accept="image/*" />
+            <small class="form-text opacity-75">Voce pode usar URL da web ou arquivo local.</small>
+          </div>
           <div class="col-6">
             <select class="form-select" id="catalogCategory" required>
               <option value="">Categoria</option>

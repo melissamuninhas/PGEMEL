@@ -64,6 +64,60 @@ function showToast(message, type = "info") {
   toastEl.addEventListener("hidden.bs.toast", () => toastEl.remove());
 }
 
+function fileToDataUrl(file) {
+  return new Promise((resolve, reject) => {
+    if (!file || !file.type.startsWith("image/")) {
+      reject(new Error("Arquivo invalido. Selecione uma imagem."));
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      const image = new Image();
+      image.onload = () => {
+        const maxDimension = 1280;
+        const scale = Math.min(1, maxDimension / Math.max(image.width, image.height));
+        const width = Math.max(1, Math.round(image.width * scale));
+        const height = Math.max(1, Math.round(image.height * scale));
+
+        const canvas = document.createElement("canvas");
+        canvas.width = width;
+        canvas.height = height;
+        const context = canvas.getContext("2d");
+        context.drawImage(image, 0, 0, width, height);
+
+        const dataUrl = canvas.toDataURL("image/jpeg", 0.82);
+        if (dataUrl.length > 750000) {
+          reject(new Error("Imagem muito grande. Use uma imagem menor para salvar."));
+          return;
+        }
+
+        resolve(dataUrl);
+      };
+      image.onerror = () => reject(new Error("Nao foi possivel processar a imagem selecionada."));
+      image.src = reader.result;
+    };
+    reader.onerror = () => reject(new Error("Falha ao ler o arquivo selecionado."));
+    reader.readAsDataURL(file);
+  });
+}
+
+async function resolveImageInput(urlInputId, fileInputId, fallbackImage = "") {
+  const url = document.getElementById(urlInputId).value.trim();
+  const fileInput = document.getElementById(fileInputId);
+  const file = fileInput?.files?.[0];
+
+  if (file) {
+    return fileToDataUrl(file);
+  }
+
+  if (url) {
+    return url;
+  }
+
+  return fallbackImage;
+}
+
 let db = loadDB();
 
 function setAdminVisibility(isLogged) {
@@ -97,7 +151,9 @@ function renderDashboard() {
 function fillHeroForm() {
   document.getElementById("heroTitleInput").value = db.hero.title;
   document.getElementById("heroSubtitleInput").value = db.hero.subtitle;
-  document.getElementById("heroImageInput").value = db.hero.image;
+  const heroImageInput = document.getElementById("heroImageInput");
+  heroImageInput.value = db.hero.image.startsWith("data:image") ? "" : db.hero.image;
+  document.getElementById("heroImageFileInput").value = "";
 }
 
 function fillLinksForm() {
@@ -236,12 +292,26 @@ function setupLogin() {
 }
 
 function setupHeroAndLinksForms() {
-  document.getElementById("heroForm").addEventListener("submit", (event) => {
+  document.getElementById("heroForm").addEventListener("submit", async (event) => {
     event.preventDefault();
+
+    let image;
+    try {
+      image = await resolveImageInput("heroImageInput", "heroImageFileInput", db.hero.image);
+    } catch (error) {
+      showToast(error.message, "danger");
+      return;
+    }
+
+    if (!image) {
+      showToast("Informe uma URL da imagem ou selecione um arquivo local.", "danger");
+      return;
+    }
+
     db.hero = {
       title: document.getElementById("heroTitleInput").value.trim(),
       subtitle: document.getElementById("heroSubtitleInput").value.trim(),
-      image: document.getElementById("heroImageInput").value.trim()
+      image
     };
     saveDB(db);
     renderDashboard();
@@ -265,22 +335,39 @@ function setupHeroAndLinksForms() {
 function setupScheduleCRUD() {
   const modalEl = document.getElementById("scheduleEditModal");
   const modal = new bootstrap.Modal(modalEl);
+  const scheduleForm = document.getElementById("scheduleForm");
 
   document.getElementById("addScheduleBtn").addEventListener("click", () => {
     document.getElementById("scheduleModalTitle").textContent = "Novo Item de Cronograma";
-    document.getElementById("scheduleForm").reset();
+    scheduleForm.reset();
     document.getElementById("scheduleId").value = "";
+    scheduleForm.dataset.currentImage = "";
     modal.show();
   });
 
-  document.getElementById("scheduleForm").addEventListener("submit", (event) => {
+  scheduleForm.addEventListener("submit", async (event) => {
     event.preventDefault();
 
     const id = document.getElementById("scheduleId").value;
+    const fallbackImage = scheduleForm.dataset.currentImage || "";
+
+    let image;
+    try {
+      image = await resolveImageInput("scheduleImage", "scheduleImageFile", fallbackImage);
+    } catch (error) {
+      showToast(error.message, "danger");
+      return;
+    }
+
+    if (!image) {
+      showToast("Informe uma URL da imagem ou selecione um arquivo local.", "danger");
+      return;
+    }
+
     const payload = {
       id: id || crypto.randomUUID(),
       title: document.getElementById("scheduleTitle").value.trim(),
-      image: document.getElementById("scheduleImage").value.trim(),
+      image,
       day: document.getElementById("scheduleDay").value.trim(),
       date: document.getElementById("scheduleDate").value,
       episodes: document.getElementById("scheduleEpisodes").value.trim(),
@@ -298,6 +385,7 @@ function setupScheduleCRUD() {
     saveDB(db);
     renderScheduleTable();
     renderDashboard();
+    scheduleForm.dataset.currentImage = "";
     modal.hide();
   });
 
@@ -311,7 +399,9 @@ function setupScheduleCRUD() {
       document.getElementById("scheduleModalTitle").textContent = "Editar Item de Cronograma";
       document.getElementById("scheduleId").value = item.id;
       document.getElementById("scheduleTitle").value = item.title;
-      document.getElementById("scheduleImage").value = item.image;
+      document.getElementById("scheduleImage").value = item.image.startsWith("data:image") ? "" : item.image;
+      document.getElementById("scheduleImageFile").value = "";
+      scheduleForm.dataset.currentImage = item.image;
       document.getElementById("scheduleDay").value = item.day;
       document.getElementById("scheduleDate").value = item.date;
       document.getElementById("scheduleEpisodes").value = item.episodes;
@@ -333,22 +423,39 @@ function setupScheduleCRUD() {
 function setupCatalogCRUD() {
   const modalEl = document.getElementById("catalogEditModal");
   const modal = new bootstrap.Modal(modalEl);
+  const catalogForm = document.getElementById("catalogForm");
 
   document.getElementById("addCatalogBtn").addEventListener("click", () => {
     document.getElementById("catalogModalTitle").textContent = "Novo Conteudo Assistido";
-    document.getElementById("catalogForm").reset();
+    catalogForm.reset();
     document.getElementById("catalogId").value = "";
+    catalogForm.dataset.currentImage = "";
     modal.show();
   });
 
-  document.getElementById("catalogForm").addEventListener("submit", (event) => {
+  catalogForm.addEventListener("submit", async (event) => {
     event.preventDefault();
 
     const id = document.getElementById("catalogId").value;
+    const fallbackImage = catalogForm.dataset.currentImage || "";
+
+    let image;
+    try {
+      image = await resolveImageInput("catalogImage", "catalogImageFile", fallbackImage);
+    } catch (error) {
+      showToast(error.message, "danger");
+      return;
+    }
+
+    if (!image) {
+      showToast("Informe uma URL da imagem ou selecione um arquivo local.", "danger");
+      return;
+    }
+
     const payload = {
       id: id || crypto.randomUUID(),
       title: document.getElementById("catalogTitle").value.trim(),
-      image: document.getElementById("catalogImage").value.trim(),
+      image,
       category: document.getElementById("catalogCategory").value,
       rating: Number(document.getElementById("catalogRating").value)
     };
@@ -364,6 +471,7 @@ function setupCatalogCRUD() {
     saveDB(db);
     renderCatalogTable();
     renderDashboard();
+    catalogForm.dataset.currentImage = "";
     modal.hide();
   });
 
@@ -377,7 +485,9 @@ function setupCatalogCRUD() {
       document.getElementById("catalogModalTitle").textContent = "Editar Conteudo Assistido";
       document.getElementById("catalogId").value = item.id;
       document.getElementById("catalogTitle").value = item.title;
-      document.getElementById("catalogImage").value = item.image;
+      document.getElementById("catalogImage").value = item.image.startsWith("data:image") ? "" : item.image;
+      document.getElementById("catalogImageFile").value = "";
+      catalogForm.dataset.currentImage = item.image;
       document.getElementById("catalogCategory").value = item.category;
       document.getElementById("catalogRating").value = item.rating;
       modal.show();
