@@ -119,7 +119,8 @@
       image: item?.image || "",
       title: item?.title || "",
       episodes: item?.episodes || "",
-      time: item?.time || ""
+      time: item?.time || "",
+      order: Number.isFinite(Number(item?.order)) ? Number(item.order) : 0
     };
   }
 
@@ -129,7 +130,8 @@
       title: item?.title || "",
       image: item?.image || "",
       rating: Number(item?.rating ?? 0),
-      category: item?.category || "Filmes"
+      category: item?.category || "Filmes",
+      order: Number.isFinite(Number(item?.order)) ? Number(item.order) : 0
     };
   }
 
@@ -137,8 +139,18 @@
     return {
       id: item?.id || crypto.randomUUID(),
       title: item?.title || "",
-      createdAt: item?.createdAt || new Date().toISOString()
+      createdAt: item?.createdAt || new Date().toISOString(),
+      order: Number.isFinite(Number(item?.order)) ? Number(item.order) : 0
     };
+  }
+
+  function normalizeCollection(items, normalizeItem) {
+    return items.map((item, index) => normalizeItem({ ...item, order: item?.order ?? index }));
+  }
+
+  function stripOrder(item) {
+    const { order, ...rest } = item;
+    return rest;
   }
 
   function normalize(data = {}) {
@@ -151,17 +163,111 @@
         ...clone(DEFAULT_DB.social),
         ...(data.social || {})
       },
-      schedule: Array.isArray(data.schedule) ? data.schedule.map(normalizeScheduleItem) : clone(DEFAULT_DB.schedule),
-      watched: Array.isArray(data.watched) ? data.watched.map(normalizeWatchedItem) : clone(DEFAULT_DB.watched),
-      requests: Array.isArray(data.requests) ? data.requests.map(normalizeRequestItem) : clone(DEFAULT_DB.requests)
+      schedule: Array.isArray(data.schedule) ? normalizeCollection(data.schedule, normalizeScheduleItem) : normalizeCollection(clone(DEFAULT_DB.schedule), normalizeScheduleItem),
+      watched: Array.isArray(data.watched) ? normalizeCollection(data.watched, normalizeWatchedItem) : normalizeCollection(clone(DEFAULT_DB.watched), normalizeWatchedItem),
+      requests: Array.isArray(data.requests) ? normalizeCollection(data.requests, normalizeRequestItem) : normalizeCollection(clone(DEFAULT_DB.requests), normalizeRequestItem)
     };
+  }
+
+  function buildCorePayload(data) {
+    return {
+      hero: data.hero,
+      social: data.social,
+      schemaVersion: 2
+    };
+  }
+
+  function sortByOrder(items) {
+    return [...items].sort((a, b) => Number(a.order || 0) - Number(b.order || 0));
+  }
+
+  function listToMap(items) {
+    const map = new Map();
+    items.forEach((item) => map.set(item.id, item));
+    return map;
+  }
+
+  async function commitOperationsInChunks(firestore, operations, chunkSize = 400) {
+    for (let i = 0; i < operations.length; i += chunkSize) {
+      const chunk = operations.slice(i, i + chunkSize);
+      const batch = firestore.batch();
+
+      chunk.forEach((operation) => {
+        if (operation.type === "set") {
+          batch.set(operation.ref, operation.data);
+          return;
+        }
+
+        if (operation.type === "delete") {
+          batch.delete(operation.ref);
+        }
+      });
+
+      await batch.commit();
+    }
+  }
+
+  function isItemChanged(previousItem, nextItem) {
+    if (!previousItem) return true;
+    return JSON.stringify(previousItem) !== JSON.stringify(nextItem);
+  }
+
+  async function syncCollectionDiff(firestore, collectionRef, previousItems, nextItems, normalizeItem) {
+    const normalizedPrevious = sortByOrder(normalizeCollection(previousItems, normalizeItem));
+    const normalizedNext = sortByOrder(normalizeCollection(nextItems, normalizeItem));
+
+    const previousMap = listToMap(normalizedPrevious);
+    const nextMap = listToMap(normalizedNext);
+    const operations = [];
+
+    normalizedNext.forEach((item) => {
+      const previousItem = previousMap.get(item.id);
+      if (!isItemChanged(previousItem, item)) {
+        return;
+      }
+
+      operations.push({
+        type: "set",
+        ref: collectionRef.doc(item.id),
+        data: item
+      });
+    });
+
+    normalizedPrevious.forEach((item) => {
+      if (nextMap.has(item.id)) {
+        return;
+      }
+
+      operations.push({
+        type: "delete",
+        ref: collectionRef.doc(item.id)
+      });
+    });
+
+    if (!operations.length) {
+      return;
+    }
+
+    await commitOperationsInChunks(firestore, operations);
+  }
+
+  function snapshotToNormalizedList(snapshot, normalizeItem) {
+    const items = snapshot.docs.map((doc) => normalizeItem({ id: doc.id, ...doc.data() }));
+    return sortByOrder(items);
   }
 
   const listeners = new Set();
   let current = normalize(DEFAULT_DB);
   let mode = "firebase";
   let firestoreDoc = null;
+  let firestoreDb = null;
+  let scheduleCollection = null;
+  let watchedCollection = null;
+  let requestsCollection = null;
   let unsubscribeRemote = null;
+  let unsubscribeSchedule = null;
+  let unsubscribeWatched = null;
+  let unsubscribeRequests = null;
   let readyResolve;
   let readyReject;
   let lastError = null;
@@ -196,23 +302,113 @@
         window.firebase.initializeApp(firebaseConfig);
       }
 
-      const firestore = window.firebase.firestore();
-      firestoreDoc = firestore.collection("seaCaos").doc("content");
+      firestoreDb = window.firebase.firestore();
+      firestoreDoc = firestoreDb.collection("seaCaos").doc("content");
+      scheduleCollection = firestoreDoc.collection("scheduleItems");
+      watchedCollection = firestoreDoc.collection("watchedItems");
+      requestsCollection = firestoreDoc.collection("requestItems");
 
       const snapshot = await firestoreDoc.get();
+      const rawCore = snapshot.exists ? (snapshot.data() || {}) : {};
+      const normalizedLegacy = normalize(rawCore);
+
+      let scheduleList = [];
+      let watchedList = [];
+      let requestsList = [];
+
       if (!snapshot.exists) {
-        current = normalize(DEFAULT_DB);
-        await firestoreDoc.set(current);
+        const seeded = normalize(DEFAULT_DB);
+        await firestoreDoc.set(buildCorePayload(seeded));
+
+        await Promise.all([
+          syncCollectionDiff(firestoreDb, scheduleCollection, [], seeded.schedule, normalizeScheduleItem),
+          syncCollectionDiff(firestoreDb, watchedCollection, [], seeded.watched, normalizeWatchedItem),
+          syncCollectionDiff(firestoreDb, requestsCollection, [], seeded.requests, normalizeRequestItem)
+        ]);
+
+        scheduleList = seeded.schedule;
+        watchedList = seeded.watched;
+        requestsList = seeded.requests;
       } else {
-        current = normalize(snapshot.data());
+        const [scheduleSnapshot, watchedSnapshot, requestsSnapshot] = await Promise.all([
+          scheduleCollection.get(),
+          watchedCollection.get(),
+          requestsCollection.get()
+        ]);
+
+        const hasSubcollectionData = !scheduleSnapshot.empty || !watchedSnapshot.empty || !requestsSnapshot.empty;
+        const legacyHasArrays = Array.isArray(rawCore.schedule) || Array.isArray(rawCore.watched) || Array.isArray(rawCore.requests);
+
+        if (!hasSubcollectionData && legacyHasArrays) {
+          await Promise.all([
+            syncCollectionDiff(firestoreDb, scheduleCollection, [], normalizedLegacy.schedule, normalizeScheduleItem),
+            syncCollectionDiff(firestoreDb, watchedCollection, [], normalizedLegacy.watched, normalizeWatchedItem),
+            syncCollectionDiff(firestoreDb, requestsCollection, [], normalizedLegacy.requests, normalizeRequestItem)
+          ]);
+
+          await firestoreDoc.set(buildCorePayload(normalizedLegacy));
+          scheduleList = normalizedLegacy.schedule;
+          watchedList = normalizedLegacy.watched;
+          requestsList = normalizedLegacy.requests;
+        } else {
+          scheduleList = snapshotToNormalizedList(scheduleSnapshot, normalizeScheduleItem);
+          watchedList = snapshotToNormalizedList(watchedSnapshot, normalizeWatchedItem);
+          requestsList = snapshotToNormalizedList(requestsSnapshot, normalizeRequestItem);
+        }
       }
 
-      unsubscribeRemote = firestoreDoc.onSnapshot((remoteSnapshot) => {
-        if (!remoteSnapshot.exists) {
-          return;
-        }
+      current = normalize({
+        hero: normalizedLegacy.hero,
+        social: normalizedLegacy.social,
+        schedule: scheduleList,
+        watched: watchedList,
+        requests: requestsList
+      });
 
-        current = normalize(remoteSnapshot.data());
+      unsubscribeRemote = firestoreDoc.onSnapshot((remoteSnapshot) => {
+        const remoteData = remoteSnapshot.exists ? remoteSnapshot.data() : {};
+        const normalizedCore = normalize({
+          hero: remoteData?.hero,
+          social: remoteData?.social,
+          schedule: current.schedule,
+          watched: current.watched,
+          requests: current.requests
+        });
+
+        current = normalizedCore;
+        notify();
+      }, (error) => {
+        console.error(error);
+      });
+
+      unsubscribeSchedule = scheduleCollection.onSnapshot((scheduleSnapshot) => {
+        const schedule = snapshotToNormalizedList(scheduleSnapshot, normalizeScheduleItem);
+        current = normalize({
+          ...current,
+          schedule
+        });
+        notify();
+      }, (error) => {
+        console.error(error);
+      });
+
+      unsubscribeWatched = watchedCollection.onSnapshot((watchedSnapshot) => {
+        const watched = snapshotToNormalizedList(watchedSnapshot, normalizeWatchedItem);
+        current = normalize({
+          ...current,
+          watched
+        });
+        notify();
+      }, (error) => {
+        console.error(error);
+      });
+
+      unsubscribeRequests = requestsCollection.onSnapshot((requestsSnapshot) => {
+        const requests = snapshotToNormalizedList(requestsSnapshot, normalizeRequestItem);
+        current = normalize({
+          ...current,
+          requests
+        });
         notify();
       }, (error) => {
         console.error(error);
@@ -232,21 +428,46 @@
       throw new Error("Firebase nao inicializado. Verifique a configuracao e as regras do Firestore.");
     }
 
-    current = normalize(data);
-    await firestoreDoc.set(current);
+    const previous = normalize(current);
+    const next = normalize(data);
+
+    await firestoreDoc.set(buildCorePayload(next));
+
+    await Promise.all([
+      syncCollectionDiff(firestoreDb, scheduleCollection, previous.schedule, next.schedule, normalizeScheduleItem),
+      syncCollectionDiff(firestoreDb, watchedCollection, previous.watched, next.watched, normalizeWatchedItem),
+      syncCollectionDiff(firestoreDb, requestsCollection, previous.requests, next.requests, normalizeRequestItem)
+    ]);
+
+    current = next;
 
     notify();
-    return clone(current);
+    return normalize({
+      ...clone(current),
+      schedule: current.schedule.map(stripOrder),
+      watched: current.watched.map(stripOrder),
+      requests: current.requests.map(stripOrder)
+    });
   }
 
   function subscribe(listener) {
     listeners.add(listener);
-    listener(clone(current));
+    listener(normalize({
+      ...clone(current),
+      schedule: current.schedule.map(stripOrder),
+      watched: current.watched.map(stripOrder),
+      requests: current.requests.map(stripOrder)
+    }));
     return () => listeners.delete(listener);
   }
 
   function getCurrent() {
-    return clone(current);
+    return normalize({
+      ...clone(current),
+      schedule: current.schedule.map(stripOrder),
+      watched: current.watched.map(stripOrder),
+      requests: current.requests.map(stripOrder)
+    });
   }
 
   initFirebase();
@@ -262,7 +483,12 @@
       return mode;
     },
     get remoteUnsubscribe() {
-      return unsubscribeRemote;
+      return () => {
+        if (unsubscribeRemote) unsubscribeRemote();
+        if (unsubscribeSchedule) unsubscribeSchedule();
+        if (unsubscribeWatched) unsubscribeWatched();
+        if (unsubscribeRequests) unsubscribeRequests();
+      };
     },
     get error() {
       return lastError;
