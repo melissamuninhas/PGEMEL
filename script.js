@@ -152,7 +152,7 @@ function buildSocialLinks(social) {
     { key: "discord", icon: "fa-discord" },
     { key: "twitch", icon: "fa-twitch" },
     { key: "instagram", icon: "fa-instagram" },
-    { key: "twitter", icon: "fa-x-twitter" }
+    // { key: "twitter", icon: "fa-x-twitter" }
   ];
 
   return entries
