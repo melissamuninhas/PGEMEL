@@ -1,0 +1,447 @@
+const STORAGE_KEY = "seaCaosDB_v1";
+const ADMIN_AUTH_KEY = "seaCaosAdminLogged";
+
+function createDefaultDB() {
+  return {
+    hero: {
+      title: "NA LIVE COM A MELHOR COMUNIDADE!",
+      subtitle: "Aqui a bagunca e garantida e as historias ficam ainda melhores juntos.",
+      image: "https://images.unsplash.com/photo-1607604276583-eef5d076aa5f?q=80&w=1400&auto=format&fit=crop"
+    },
+    social: {
+      discord: "https://discord.com",
+      twitch: "https://www.twitch.tv",
+      instagram: "https://www.instagram.com",
+      twitter: "https://x.com"
+    },
+    schedule: [
+      {
+        id: crypto.randomUUID(),
+        day: "Segunda",
+        date: "2026-05-11",
+        image: "https://images.unsplash.com/photo-1489599809927-2ee91cede3ba?q=80&w=1200&auto=format&fit=crop",
+        title: "Harry Potter e o Enigma do Principe",
+        episodes: "Filme Completo",
+        time: "20:30"
+      }
+    ],
+    watched: [
+      {
+        id: crypto.randomUUID(),
+        title: "Your Name",
+        image: "https://images.unsplash.com/photo-1534447677768-be436bb09401?q=80&w=1200&auto=format&fit=crop",
+        rating: 9.4,
+        category: "Animes"
+      }
+    ],
+    requests: []
+  };
+}
+
+function loadDB() {
+  const raw = localStorage.getItem(STORAGE_KEY);
+  if (!raw) {
+    const initial = createDefaultDB();
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(initial));
+    return initial;
+  }
+
+  try {
+    const parsed = JSON.parse(raw);
+    const defaults = createDefaultDB();
+    return {
+      ...defaults,
+      ...parsed,
+      hero: { ...defaults.hero, ...parsed.hero },
+      social: { ...defaults.social, ...parsed.social },
+      schedule: Array.isArray(parsed.schedule) ? parsed.schedule : defaults.schedule,
+      watched: Array.isArray(parsed.watched) ? parsed.watched : defaults.watched,
+      requests: Array.isArray(parsed.requests) ? parsed.requests : []
+    };
+  } catch {
+    const fallback = createDefaultDB();
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(fallback));
+    return fallback;
+  }
+}
+
+function saveDB(db) {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(db));
+}
+
+function showToast(message, type = "info") {
+  const container = document.getElementById("toastContainer");
+  const icon = type === "success" ? "fa-circle-check" : type === "danger" ? "fa-circle-xmark" : "fa-circle-info";
+  const toastEl = document.createElement("div");
+  toastEl.className = "toast align-items-center";
+  toastEl.innerHTML = `
+    <div class="d-flex">
+      <div class="toast-body"><i class="fa-solid ${icon} me-2"></i>${message}</div>
+      <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Fechar"></button>
+    </div>
+  `;
+
+  container.appendChild(toastEl);
+  const toast = new bootstrap.Toast(toastEl, { delay: 2600 });
+  toast.show();
+  toastEl.addEventListener("hidden.bs.toast", () => toastEl.remove());
+}
+
+let db = loadDB();
+
+function setAdminVisibility(isLogged) {
+  document.getElementById("loginSection").classList.toggle("d-none", isLogged);
+  document.getElementById("adminApp").classList.toggle("d-none", !isLogged);
+}
+
+function renderDashboard() {
+  const cards = [
+    { label: "Itens no Cronograma", value: db.schedule.length, icon: "fa-calendar-week" },
+    { label: "Conteudos Assistidos", value: db.watched.length, icon: "fa-photo-film" },
+    { label: "Pedidos Pendentes", value: db.requests.length, icon: "fa-inbox" },
+    { label: "Links Sociais", value: 4, icon: "fa-link" }
+  ];
+
+  const container = document.getElementById("dashboardCards");
+  container.innerHTML = cards
+    .map(
+      (card) => `
+      <div class="col-6 col-xl-3">
+        <div class="dashboard-stat">
+          <h4><i class="fa-solid ${card.icon} me-2"></i>${card.label}</h4>
+          <p>${card.value}</p>
+        </div>
+      </div>
+    `
+    )
+    .join("");
+}
+
+function fillHeroForm() {
+  document.getElementById("heroTitleInput").value = db.hero.title;
+  document.getElementById("heroSubtitleInput").value = db.hero.subtitle;
+  document.getElementById("heroImageInput").value = db.hero.image;
+}
+
+function fillLinksForm() {
+  document.getElementById("discordInput").value = db.social.discord;
+  document.getElementById("twitchInput").value = db.social.twitch;
+  document.getElementById("instagramInput").value = db.social.instagram;
+  document.getElementById("twitterInput").value = db.social.twitter;
+}
+
+function renderScheduleTable() {
+  const tbody = document.getElementById("scheduleTable");
+  if (!db.schedule.length) {
+    tbody.innerHTML = `<tr><td colspan="5" class="text-center py-4">Nenhum item cadastrado.</td></tr>`;
+    return;
+  }
+
+  tbody.innerHTML = db.schedule
+    .map(
+      (item) => `
+      <tr>
+        <td>
+          <div class="d-flex align-items-center gap-2">
+            <img src="${item.image}" alt="${item.title}" width="56" height="40" style="object-fit:cover;border-radius:8px;" />
+            <span>${item.title}</span>
+          </div>
+        </td>
+        <td>${item.day}<br><small>${item.date}</small></td>
+        <td>${item.episodes}</td>
+        <td>${item.time}</td>
+        <td>
+          <button class="btn btn-sm btn-outline-neon edit-schedule" data-id="${item.id}"><i class="fa-solid fa-pen"></i></button>
+          <button class="btn btn-sm btn-danger remove-schedule" data-id="${item.id}"><i class="fa-solid fa-trash"></i></button>
+        </td>
+      </tr>
+    `
+    )
+    .join("");
+}
+
+function renderCatalogTable() {
+  const tbody = document.getElementById("catalogTable");
+  if (!db.watched.length) {
+    tbody.innerHTML = `<tr><td colspan="4" class="text-center py-4">Nenhum conteudo cadastrado.</td></tr>`;
+    return;
+  }
+
+  tbody.innerHTML = db.watched
+    .map(
+      (item) => `
+      <tr>
+        <td>
+          <div class="d-flex align-items-center gap-2">
+            <img src="${item.image}" alt="${item.title}" width="56" height="40" style="object-fit:cover;border-radius:8px;" />
+            <span>${item.title}</span>
+          </div>
+        </td>
+        <td>${item.category}</td>
+        <td>${Number(item.rating).toFixed(1)}</td>
+        <td>
+          <button class="btn btn-sm btn-outline-neon edit-catalog" data-id="${item.id}"><i class="fa-solid fa-pen"></i></button>
+          <button class="btn btn-sm btn-danger remove-catalog" data-id="${item.id}"><i class="fa-solid fa-trash"></i></button>
+        </td>
+      </tr>
+    `
+    )
+    .join("");
+}
+
+function renderRequests() {
+  const container = document.getElementById("requestsList");
+  if (!db.requests.length) {
+    container.innerHTML = `<div class="admin-request-item">Sem pedidos no momento.</div>`;
+    return;
+  }
+
+  container.innerHTML = db.requests
+    .map(
+      (req) => `
+      <div class="admin-request-item d-flex justify-content-between align-items-center gap-3">
+        <div>
+          <h6 class="mb-1">${req.title}</h6>
+          <small class="opacity-75">${new Date(req.createdAt).toLocaleString("pt-BR")}</small>
+        </div>
+        <button class="btn btn-sm btn-danger remove-request" data-id="${req.id}"><i class="fa-solid fa-trash"></i> Excluir</button>
+      </div>
+    `
+    )
+    .join("");
+}
+
+function refreshAll() {
+  renderDashboard();
+  fillHeroForm();
+  fillLinksForm();
+  renderScheduleTable();
+  renderCatalogTable();
+  renderRequests();
+}
+
+function setupNavigation() {
+  document.querySelectorAll("#adminNav button").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      document.querySelectorAll("#adminNav button").forEach((b) => b.classList.remove("active"));
+      btn.classList.add("active");
+
+      const target = btn.dataset.target;
+      document.querySelectorAll(".admin-panel").forEach((panel) => panel.classList.remove("active"));
+      document.getElementById(target).classList.add("active");
+    });
+  });
+}
+
+function setupLogin() {
+  const logged = localStorage.getItem(ADMIN_AUTH_KEY) === "1";
+  setAdminVisibility(logged);
+
+  document.getElementById("loginForm").addEventListener("submit", (event) => {
+    event.preventDefault();
+    const user = document.getElementById("loginUser").value.trim();
+    const pass = document.getElementById("loginPass").value.trim();
+
+    if (user === "admin" && pass === "seacaos123") {
+      localStorage.setItem(ADMIN_AUTH_KEY, "1");
+      setAdminVisibility(true);
+      showToast("Login realizado com sucesso.", "success");
+    } else {
+      showToast("Credenciais invalidas.", "danger");
+    }
+  });
+
+  document.getElementById("logoutBtn").addEventListener("click", () => {
+    localStorage.removeItem(ADMIN_AUTH_KEY);
+    setAdminVisibility(false);
+    showToast("Sessao encerrada.");
+  });
+}
+
+function setupHeroAndLinksForms() {
+  document.getElementById("heroForm").addEventListener("submit", (event) => {
+    event.preventDefault();
+    db.hero = {
+      title: document.getElementById("heroTitleInput").value.trim(),
+      subtitle: document.getElementById("heroSubtitleInput").value.trim(),
+      image: document.getElementById("heroImageInput").value.trim()
+    };
+    saveDB(db);
+    renderDashboard();
+    showToast("Hero atualizado.", "success");
+  });
+
+  document.getElementById("linksForm").addEventListener("submit", (event) => {
+    event.preventDefault();
+    db.social = {
+      discord: document.getElementById("discordInput").value.trim(),
+      twitch: document.getElementById("twitchInput").value.trim(),
+      instagram: document.getElementById("instagramInput").value.trim(),
+      twitter: document.getElementById("twitterInput").value.trim()
+    };
+    saveDB(db);
+    renderDashboard();
+    showToast("Links atualizados.", "success");
+  });
+}
+
+function setupScheduleCRUD() {
+  const modalEl = document.getElementById("scheduleEditModal");
+  const modal = new bootstrap.Modal(modalEl);
+
+  document.getElementById("addScheduleBtn").addEventListener("click", () => {
+    document.getElementById("scheduleModalTitle").textContent = "Novo Item de Cronograma";
+    document.getElementById("scheduleForm").reset();
+    document.getElementById("scheduleId").value = "";
+    modal.show();
+  });
+
+  document.getElementById("scheduleForm").addEventListener("submit", (event) => {
+    event.preventDefault();
+
+    const id = document.getElementById("scheduleId").value;
+    const payload = {
+      id: id || crypto.randomUUID(),
+      title: document.getElementById("scheduleTitle").value.trim(),
+      image: document.getElementById("scheduleImage").value.trim(),
+      day: document.getElementById("scheduleDay").value.trim(),
+      date: document.getElementById("scheduleDate").value,
+      episodes: document.getElementById("scheduleEpisodes").value.trim(),
+      time: document.getElementById("scheduleTime").value
+    };
+
+    if (id) {
+      db.schedule = db.schedule.map((item) => (item.id === id ? payload : item));
+      showToast("Item do cronograma atualizado.", "success");
+    } else {
+      db.schedule.push(payload);
+      showToast("Item adicionado ao cronograma.", "success");
+    }
+
+    saveDB(db);
+    renderScheduleTable();
+    renderDashboard();
+    modal.hide();
+  });
+
+  document.getElementById("scheduleTable").addEventListener("click", (event) => {
+    const editBtn = event.target.closest(".edit-schedule");
+    const removeBtn = event.target.closest(".remove-schedule");
+
+    if (editBtn) {
+      const item = db.schedule.find((s) => s.id === editBtn.dataset.id);
+      if (!item) return;
+      document.getElementById("scheduleModalTitle").textContent = "Editar Item de Cronograma";
+      document.getElementById("scheduleId").value = item.id;
+      document.getElementById("scheduleTitle").value = item.title;
+      document.getElementById("scheduleImage").value = item.image;
+      document.getElementById("scheduleDay").value = item.day;
+      document.getElementById("scheduleDate").value = item.date;
+      document.getElementById("scheduleEpisodes").value = item.episodes;
+      document.getElementById("scheduleTime").value = item.time;
+      modal.show();
+    }
+
+    if (removeBtn) {
+      const id = removeBtn.dataset.id;
+      db.schedule = db.schedule.filter((s) => s.id !== id);
+      saveDB(db);
+      renderScheduleTable();
+      renderDashboard();
+      showToast("Item removido do cronograma.", "success");
+    }
+  });
+}
+
+function setupCatalogCRUD() {
+  const modalEl = document.getElementById("catalogEditModal");
+  const modal = new bootstrap.Modal(modalEl);
+
+  document.getElementById("addCatalogBtn").addEventListener("click", () => {
+    document.getElementById("catalogModalTitle").textContent = "Novo Conteudo Assistido";
+    document.getElementById("catalogForm").reset();
+    document.getElementById("catalogId").value = "";
+    modal.show();
+  });
+
+  document.getElementById("catalogForm").addEventListener("submit", (event) => {
+    event.preventDefault();
+
+    const id = document.getElementById("catalogId").value;
+    const payload = {
+      id: id || crypto.randomUUID(),
+      title: document.getElementById("catalogTitle").value.trim(),
+      image: document.getElementById("catalogImage").value.trim(),
+      category: document.getElementById("catalogCategory").value,
+      rating: Number(document.getElementById("catalogRating").value)
+    };
+
+    if (id) {
+      db.watched = db.watched.map((item) => (item.id === id ? payload : item));
+      showToast("Conteudo atualizado.", "success");
+    } else {
+      db.watched.push(payload);
+      showToast("Conteudo adicionado.", "success");
+    }
+
+    saveDB(db);
+    renderCatalogTable();
+    renderDashboard();
+    modal.hide();
+  });
+
+  document.getElementById("catalogTable").addEventListener("click", (event) => {
+    const editBtn = event.target.closest(".edit-catalog");
+    const removeBtn = event.target.closest(".remove-catalog");
+
+    if (editBtn) {
+      const item = db.watched.find((w) => w.id === editBtn.dataset.id);
+      if (!item) return;
+      document.getElementById("catalogModalTitle").textContent = "Editar Conteudo Assistido";
+      document.getElementById("catalogId").value = item.id;
+      document.getElementById("catalogTitle").value = item.title;
+      document.getElementById("catalogImage").value = item.image;
+      document.getElementById("catalogCategory").value = item.category;
+      document.getElementById("catalogRating").value = item.rating;
+      modal.show();
+    }
+
+    if (removeBtn) {
+      const id = removeBtn.dataset.id;
+      db.watched = db.watched.filter((w) => w.id !== id);
+      saveDB(db);
+      renderCatalogTable();
+      renderDashboard();
+      showToast("Conteudo removido.", "success");
+    }
+  });
+}
+
+function setupRequestsActions() {
+  document.getElementById("requestsList").addEventListener("click", (event) => {
+    const removeBtn = event.target.closest(".remove-request");
+    if (!removeBtn) return;
+
+    db.requests = db.requests.filter((req) => req.id !== removeBtn.dataset.id);
+    saveDB(db);
+    renderRequests();
+    renderDashboard();
+    showToast("Pedido removido.", "success");
+  });
+}
+
+function init() {
+  setupLogin();
+  setupNavigation();
+  setupHeroAndLinksForms();
+  setupScheduleCRUD();
+  setupCatalogCRUD();
+  setupRequestsActions();
+  refreshAll();
+
+  setTimeout(() => {
+    document.getElementById("adminLoader").classList.add("hidden");
+  }, 450);
+}
+
+document.addEventListener("DOMContentLoaded", init);
